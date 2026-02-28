@@ -1,0 +1,38 @@
+# Dependencies
+node_modules/
+frontend/node_modules/
+
+# Build artifacts
+artifacts/
+cache/
+typechain-types/
+dist/
+frontend/.next/
+frontend/out/
+
+# Environment
+.env
+.env.local
+.env*.local
+
+# Lockfiles (bun binary lockfile not needed in git)
+package-lock.json
+
+# Test / coverage
+coverage/
+coverage.json
+
+# Logs
+*.log
+
+# OS
+.DS_Store
+Thumbs.db
+
+# IDE
+.vscode/
+.idea/
+
+# Claude
+CLAUDE.md
+.claude/
