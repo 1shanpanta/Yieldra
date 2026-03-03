@@ -4,6 +4,7 @@ import Header from "@/components/Header";
 import VaultStats from "@/components/VaultStats";
 import DepositPanel from "@/components/DepositPanel";
 import YieldTable from "@/components/YieldTable";
+import ApyChart from "@/components/ApyChart";
 import HowItWorks from "@/components/HowItWorks";
 
 export default function Home() {
@@ -19,6 +20,7 @@ export default function Home() {
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
           <div className="lg:col-span-2 flex flex-col gap-6">
             <YieldTable />
+            <ApyChart />
           </div>
           <div>
             <DepositPanel />
@@ -27,12 +29,11 @@ export default function Home() {
 
         {/* How It Works */}
         <HowItWorks />
-
-        {/* Footer */}
-        <footer className="text-center py-6 text-xs text-neutral-600 border-t border-white/5">
-          Built for Chainlink Convergence Hackathon &middot; ERC-4626 Vault &middot; Chainlink Automation
-        </footer>
       </main>
+
+      <footer className="text-center py-6 text-xs text-neutral-600 border-t border-white/5 max-w-6xl mx-auto w-full px-4 sm:px-6">
+        Built for Chainlink Convergence Hackathon &middot; ERC-4626 Vault &middot; Chainlink Automation
+      </footer>
     </div>
   );
 }

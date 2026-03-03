@@ -12,6 +12,24 @@ export const metadata: Metadata = {
   title: "Yieldra | Auto-Rebalancing DeFi Vault",
   description:
     "Auto-rebalancing vault that syncs your stablecoins to the highest risk-adjusted yield across DeFi protocols. Powered by Chainlink.",
+  icons: {
+    icon: [
+      { url: "/favicon.svg", type: "image/svg+xml" },
+    ],
+  },
+  openGraph: {
+    title: "Yieldra | Auto-Rebalancing DeFi Vault",
+    description:
+      "Auto-rebalancing vault that syncs your stablecoins to the highest risk-adjusted yield across DeFi protocols. Powered by Chainlink.",
+    type: "website",
+    siteName: "Yieldra",
+  },
+  twitter: {
+    card: "summary_large_image",
+    title: "Yieldra | Auto-Rebalancing DeFi Vault",
+    description:
+      "Auto-rebalancing vault powered by Chainlink Automation and Data Feeds.",
+  },
 };
 
 export default function RootLayout({
