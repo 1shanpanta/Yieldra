@@ -17,11 +17,11 @@ function getRiskLabel(score: number): string {
 
 export default function YieldTable() {
   const { yields, shouldRebalance, rebalanceTarget, isLoading } = useYieldData();
-  const { protocol: activeProtocol, apyBps: currentApyBps } = useVaultStats();
+  const { protocol: activeProtocol } = useVaultStats();
 
   if (isLoading) {
     return (
-      <div className="neo-card p-7">
+      <div className="neo-card p-7" aria-busy="true" aria-label="Loading yield data">
         <div className="h-5 w-40 bg-neutral-800 rounded mb-6 animate-pulse" />
         <div className="space-y-4">
           {[...Array(3)].map((_, i) => (
@@ -35,7 +35,9 @@ export default function YieldTable() {
   const targetYield = yields.find(
     (y) => rebalanceTarget && y.adapter.toLowerCase() === rebalanceTarget.toLowerCase()
   );
-  const currentRiskAdj = currentApyBps ? (currentApyBps * 0.95) : 0;
+  // Use actual risk-adjusted APY from the active protocol's yield data
+  const currentYield = yields.find((y) => y.protocolName === activeProtocol);
+  const currentRiskAdj = currentYield ? Number(currentYield.riskAdjustedAPY) : 0;
   const targetRiskAdj = targetYield ? Number(targetYield.riskAdjustedAPY) : 0;
   const apyDelta = ((targetRiskAdj - currentRiskAdj) / 100).toFixed(2);
 

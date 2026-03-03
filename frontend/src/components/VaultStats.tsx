@@ -23,7 +23,7 @@ export default function VaultStats() {
 
   if (isLoading) {
     return (
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-5">
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-5" aria-busy="true" aria-label="Loading vault stats">
         {[...Array(4)].map((_, i) => (
           <div key={i} className="neo-card p-6 animate-pulse">
             <div className="h-3 w-16 bg-neutral-800 rounded mb-4" />

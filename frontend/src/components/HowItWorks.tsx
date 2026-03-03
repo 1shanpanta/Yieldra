@@ -25,8 +25,8 @@ const steps = [
 
 export default function HowItWorks() {
   return (
-    <div className="neo-card p-7 flex flex-col gap-5 animate-fade-in stagger-4">
-      <h2 className="text-sm font-medium text-neutral-300 tracking-wide">How It Works</h2>
+    <section className="neo-card p-7 flex flex-col gap-5 animate-fade-in stagger-4" aria-labelledby="how-it-works-heading">
+      <h2 id="how-it-works-heading" className="text-sm font-medium text-neutral-300 tracking-wide">How It Works</h2>
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
         {steps.map((step) => (
           <div
@@ -39,6 +39,6 @@ export default function HowItWorks() {
           </div>
         ))}
       </div>
-    </div>
+    </section>
   );
 }

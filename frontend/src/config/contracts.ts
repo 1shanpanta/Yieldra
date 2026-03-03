@@ -17,6 +17,9 @@ export const VAULT_ABI = [
   { inputs: [{ name: "shares", type: "uint256" }], name: "convertToAssets", outputs: [{ name: "", type: "uint256" }], stateMutability: "view", type: "function" },
   { inputs: [], name: "asset", outputs: [{ name: "", type: "address" }], stateMutability: "view", type: "function" },
   { inputs: [], name: "keeper", outputs: [{ name: "", type: "address" }], stateMutability: "view", type: "function" },
+  { inputs: [{ name: "", type: "address" }], name: "maxDeposit", outputs: [{ name: "", type: "uint256" }], stateMutability: "view", type: "function" },
+  { inputs: [], name: "emergencyWithdraw", outputs: [], stateMutability: "nonpayable", type: "function" },
+  { inputs: [], name: "depositCap", outputs: [{ name: "", type: "uint256" }], stateMutability: "view", type: "function" },
 ] as const;
 
 export const AGGREGATOR_ABI = [
@@ -47,10 +50,10 @@ export const ERC20_ABI = [
   { inputs: [], name: "symbol", outputs: [{ name: "", type: "string" }], stateMutability: "view", type: "function" },
 ] as const;
 
-// Deployed contract addresses - update after deployment
+// Contract addresses — loaded from env vars (set by deploy script) with hardhat defaults
 export const CONTRACTS = {
-  vault: "0xDc64a140Aa3E981100a9becA4E685f962f0cF6C9" as `0x${string}`,
-  aggregator: "0x5FC8d32690cc91D4c39d9d3abcBD16989F875707" as `0x${string}`,
-  usdc: "0x5FbDB2315678afecb367f032d93F642f64180aa3" as `0x${string}`,
-  keeper: "0x0165878A594ca255338adfa4d48449f69242Eb8F" as `0x${string}`,
+  vault: (process.env.NEXT_PUBLIC_VAULT_ADDRESS || "0xDc64a140Aa3E981100a9becA4E685f962f0cF6C9") as `0x${string}`,
+  aggregator: (process.env.NEXT_PUBLIC_AGGREGATOR_ADDRESS || "0x5FC8d32690cc91D4c39d9d3abcBD16989F875707") as `0x${string}`,
+  usdc: (process.env.NEXT_PUBLIC_USDC_ADDRESS || "0x5FbDB2315678afecb367f032d93F642f64180aa3") as `0x${string}`,
+  keeper: (process.env.NEXT_PUBLIC_KEEPER_ADDRESS || "0x0165878A594ca255338adfa4d48449f69242Eb8F") as `0x${string}`,
 } as const;
