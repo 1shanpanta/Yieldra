@@ -21,7 +21,17 @@ export default function Header() {
           Chainlink
         </span>
       </Link>
-      <nav aria-label="Wallet connection">
+      <nav className="flex items-center gap-3" aria-label="Wallet connection">
+        <Link
+          href="/profile"
+          className="w-9 h-9 rounded-xl bg-white/[0.04] hover:bg-white/[0.08] flex items-center justify-center transition-colors"
+          aria-label="View profile"
+        >
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#999" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+            <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2" />
+            <circle cx="12" cy="7" r="4" />
+          </svg>
+        </Link>
         <ConnectButton
           chainStatus="icon"
           showBalance={false}
