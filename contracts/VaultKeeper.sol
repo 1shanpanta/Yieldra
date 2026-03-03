@@ -20,6 +20,11 @@ contract VaultKeeper is AutomationCompatibleInterface {
     // --- Events ---
     event UpkeepPerformed(address indexed newAdapter, uint256 timestamp);
 
+    // --- Errors ---
+    error CooldownActive();
+    error RebalanceNotNeeded();
+    error TargetMismatch();
+
     constructor(address _vault, address _aggregator) {
         vault = TreasuryVault(_vault);
         aggregator = YieldAggregator(_aggregator);
@@ -54,12 +59,15 @@ contract VaultKeeper is AutomationCompatibleInterface {
     /// @notice Called by Chainlink Automation to execute the rebalance
     /// @param performData Encoded target adapter address from checkUpkeep
     function performUpkeep(bytes calldata performData) external override {
+        // Enforce cooldown (prevents repeated calls between checkUpkeep intervals)
+        if (block.timestamp < lastRebalanceTime + MIN_REBALANCE_INTERVAL) revert CooldownActive();
+
         // Re-verify conditions (prevents front-running)
         (bool needed, address targetAdapter) = aggregator.shouldRebalance();
-        require(needed, "Rebalance not needed");
+        if (!needed) revert RebalanceNotNeeded();
 
         address target = abi.decode(performData, (address));
-        require(target == targetAdapter, "Target adapter mismatch");
+        if (target != targetAdapter) revert TargetMismatch();
 
         // Execute rebalance
         vault.rebalance(target);

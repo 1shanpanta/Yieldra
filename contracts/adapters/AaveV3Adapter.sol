@@ -95,6 +95,18 @@ contract AaveV3Adapter is IYieldAdapter, Ownable {
         return RISK;
     }
 
+    /// @notice Adapter is healthy if the aToken balance is accessible
+    function isHealthy() external view override returns (bool) {
+        try aavePool.getReserveData(address(underlying)) returns (
+            uint256, uint128, uint128, uint128, uint128, uint128, uint40, uint16,
+            address, address, address, address, uint128, uint128, uint128
+        ) {
+            return true;
+        } catch {
+            return false;
+        }
+    }
+
     function deposit(uint256 amount) external override onlyVault {
         underlying.safeTransferFrom(msg.sender, address(this), amount);
         underlying.safeIncreaseAllowance(address(aavePool), amount);

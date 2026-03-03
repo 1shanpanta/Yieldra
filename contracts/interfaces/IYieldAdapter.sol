@@ -27,4 +27,7 @@ interface IYieldAdapter {
 
     /// @notice Returns a risk score for this protocol (1-100, lower = safer)
     function riskScore() external view returns (uint256);
+
+    /// @notice Returns whether the adapter is healthy and able to accept deposits/withdrawals
+    function isHealthy() external view returns (bool);
 }

@@ -18,6 +18,16 @@ contract TreasuryVault is ERC4626, Ownable, ReentrancyGuard {
     address public keeper; // Chainlink Automation address
     bool public paused;
 
+    /// @notice Track last deposit block to prevent same-block rebalance manipulation
+    uint256 public lastDepositBlock;
+
+    /// @notice Maximum total assets the vault will accept (0 = unlimited)
+    uint256 public depositCap;
+
+    /// @notice Maximum deposit amount per block to prevent sandwich attacks (0 = unlimited)
+    uint256 public maxDepositPerBlock;
+    mapping(uint256 => uint256) private _depositsPerBlock;
+
     // --- Events ---
     event Rebalanced(address indexed fromAdapter, address indexed toAdapter, uint256 amount);
     event AdapterChanged(address indexed newAdapter);
@@ -25,12 +35,21 @@ contract TreasuryVault is ERC4626, Ownable, ReentrancyGuard {
     event Paused(bool isPaused);
     event FundsDeployed(address indexed adapter, uint256 amount);
     event FundsWithdrawn(address indexed adapter, uint256 amount);
+    event DepositCapUpdated(uint256 newCap);
+    event BlockDepositLimitUpdated(uint256 newLimit);
+    event EmergencyWithdrawal(address indexed user, uint256 amount);
 
     // --- Errors ---
     error VaultPaused();
     error OnlyKeeper();
     error NoAdapter();
     error SameAdapter();
+    error AdapterUnhealthy();
+    error SameBlockRebalance();
+    error SlippageExceeded();
+    error BlockDepositLimitExceeded();
+    error NoShares();
+    error InsufficientWithdraw();
 
     constructor(
         IERC20 _asset,
@@ -74,6 +93,27 @@ contract TreasuryVault is ERC4626, Ownable, ReentrancyGuard {
         emit Paused(_paused);
     }
 
+    /// @notice Set the maximum total assets the vault will accept (0 = unlimited)
+    function setDepositCap(uint256 _cap) external onlyOwner {
+        depositCap = _cap;
+        emit DepositCapUpdated(_cap);
+    }
+
+    /// @notice Set the max deposit amount allowed per block (0 = unlimited)
+    function setMaxDepositPerBlock(uint256 _max) external onlyOwner {
+        maxDepositPerBlock = _max;
+        emit BlockDepositLimitUpdated(_max);
+    }
+
+    /// @dev Override maxDeposit to enforce the deposit cap
+    function maxDeposit(address) public view override returns (uint256) {
+        if (paused) return 0;
+        if (depositCap == 0) return type(uint256).max;
+        uint256 currentAssets = totalAssets();
+        if (currentAssets >= depositCap) return 0;
+        return depositCap - currentAssets;
+    }
+
     // --- Core Vault Logic ---
 
     /// @notice Total assets = idle balance + deposited in active adapter
@@ -87,6 +127,8 @@ contract TreasuryVault is ERC4626, Ownable, ReentrancyGuard {
 
     /// @notice Deposit assets and deploy to active adapter
     function deposit(uint256 assets, address receiver) public override nonReentrant whenNotPaused returns (uint256) {
+        _enforceBlockLimit(assets);
+        lastDepositBlock = block.number;
         uint256 shares = super.deposit(assets, receiver);
         _deployToAdapter();
         return shares;
@@ -94,6 +136,9 @@ contract TreasuryVault is ERC4626, Ownable, ReentrancyGuard {
 
     /// @notice Mint shares and deploy underlying to active adapter
     function mint(uint256 shares, address receiver) public override nonReentrant whenNotPaused returns (uint256) {
+        uint256 expectedAssets = previewMint(shares);
+        _enforceBlockLimit(expectedAssets);
+        lastDepositBlock = block.number;
         uint256 assets = super.mint(shares, receiver);
         _deployToAdapter();
         return assets;
@@ -114,6 +159,13 @@ contract TreasuryVault is ERC4626, Ownable, ReentrancyGuard {
 
     // --- Internal Helpers ---
 
+    /// @notice Enforce per-block deposit rate limit
+    function _enforceBlockLimit(uint256 assets) internal {
+        if (maxDepositPerBlock == 0) return;
+        _depositsPerBlock[block.number] += assets;
+        if (_depositsPerBlock[block.number] > maxDepositPerBlock) revert BlockDepositLimitExceeded();
+    }
+
     /// @notice Deploy idle balance to active adapter
     function _deployToAdapter() internal {
         if (address(activeAdapter) == address(0)) return;
@@ -132,8 +184,11 @@ contract TreasuryVault is ERC4626, Ownable, ReentrancyGuard {
 
         uint256 shortfall = needed - idle;
         if (address(activeAdapter) != address(0)) {
+            uint256 balanceBefore = idle;
             activeAdapter.withdraw(shortfall);
-            emit FundsWithdrawn(address(activeAdapter), shortfall);
+            uint256 balanceAfter = IERC20(asset()).balanceOf(address(this));
+            if (balanceAfter < needed) revert InsufficientWithdraw();
+            emit FundsWithdrawn(address(activeAdapter), balanceAfter - balanceBefore);
         }
     }
 
@@ -144,6 +199,9 @@ contract TreasuryVault is ERC4626, Ownable, ReentrancyGuard {
     function rebalance(address newAdapter) external onlyKeeper nonReentrant whenNotPaused {
         if (newAdapter == address(0)) revert NoAdapter();
         if (newAdapter == address(activeAdapter)) revert SameAdapter();
+        if (!IYieldAdapter(newAdapter).isHealthy()) revert AdapterUnhealthy();
+        // Prevent flash loan manipulation: no rebalance in the same block as a deposit
+        if (block.number == lastDepositBlock) revert SameBlockRebalance();
 
         address oldAdapter = address(activeAdapter);
         uint256 amount = 0;
@@ -152,7 +210,11 @@ contract TreasuryVault is ERC4626, Ownable, ReentrancyGuard {
         if (oldAdapter != address(0)) {
             amount = IYieldAdapter(oldAdapter).getTotalDeposited();
             if (amount > 0) {
+                uint256 balanceBefore = IERC20(asset()).balanceOf(address(this));
                 IYieldAdapter(oldAdapter).withdraw(amount);
+                uint256 received = IERC20(asset()).balanceOf(address(this)) - balanceBefore;
+                // Slippage guard: ensure at least 99% of expected amount is received
+                if (received < (amount * 99) / 100) revert SlippageExceeded();
             }
         }
 
@@ -166,6 +228,28 @@ contract TreasuryVault is ERC4626, Ownable, ReentrancyGuard {
 
         emit Rebalanced(oldAdapter, newAdapter, balance);
         emit AdapterChanged(newAdapter);
+    }
+
+    // --- Emergency ---
+
+    /// @notice Emergency withdraw: burns shares and returns only idle USDC (bypasses adapter)
+    /// @dev Use when the adapter is compromised and normal withdraw reverts
+    function emergencyWithdraw() external nonReentrant {
+        uint256 shares = balanceOf(msg.sender);
+        if (shares == 0) revert NoShares();
+
+        uint256 idle = IERC20(asset()).balanceOf(address(this));
+        uint256 supply = totalSupply();
+
+        // Pro-rata share of idle funds only
+        uint256 payout = (idle * shares) / supply;
+        _burn(msg.sender, shares);
+
+        if (payout > 0) {
+            IERC20(asset()).safeTransfer(msg.sender, payout);
+        }
+
+        emit EmergencyWithdrawal(msg.sender, payout);
     }
 
     // --- View Helpers ---

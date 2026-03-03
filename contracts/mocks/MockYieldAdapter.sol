@@ -15,6 +15,7 @@ contract MockYieldAdapter is IYieldAdapter {
     uint256 private _apy; // in basis points
     uint256 private _risk; // 1-100
     uint256 private _deposited;
+    bool private _healthy = true;
     address public owner;
 
     constructor(
@@ -50,6 +51,10 @@ contract MockYieldAdapter is IYieldAdapter {
         return _risk;
     }
 
+    function isHealthy() external view override returns (bool) {
+        return _healthy;
+    }
+
     function deposit(uint256 amount) external override {
         IERC20(_underlying).safeTransferFrom(msg.sender, address(this), amount);
         _deposited += amount;
@@ -72,5 +77,10 @@ contract MockYieldAdapter is IYieldAdapter {
     function setRiskScore(uint256 newRisk) external {
         require(msg.sender == owner, "Only owner");
         _risk = newRisk;
+    }
+
+    function setHealthy(bool healthy_) external {
+        require(msg.sender == owner, "Only owner");
+        _healthy = healthy_;
     }
 }

@@ -80,6 +80,15 @@ contract CompoundV3Adapter is IYieldAdapter, Ownable {
         return RISK;
     }
 
+    /// @notice Adapter is healthy if Comet is reachable
+    function isHealthy() external view override returns (bool) {
+        try comet.getUtilization() returns (uint256) {
+            return true;
+        } catch {
+            return false;
+        }
+    }
+
     function deposit(uint256 amount) external override onlyVault {
         underlying.safeTransferFrom(msg.sender, address(this), amount);
         underlying.safeIncreaseAllowance(address(comet), amount);

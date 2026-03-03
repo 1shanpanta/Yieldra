@@ -104,6 +104,20 @@ contract TreasuryAdapter is IYieldAdapter, Ownable {
         return RISK;
     }
 
+    /// @notice Adapter is healthy if the Chainlink feed is returning fresh data
+    function isHealthy() external view override returns (bool) {
+        try yieldFeed.latestRoundData() returns (
+            uint80 roundId, int256 answer, uint256, uint256 updatedAt, uint80 answeredInRound
+        ) {
+            if (answer <= 0) return false;
+            if (answeredInRound < roundId) return false;
+            if (block.timestamp - updatedAt > 1 days) return false;
+            return true;
+        } catch {
+            return false;
+        }
+    }
+
     function deposit(uint256 amount) external override onlyVault {
         underlying.safeTransferFrom(msg.sender, address(this), amount);
         underlying.safeIncreaseAllowance(address(treasuryToken), amount);

@@ -22,6 +22,7 @@ contract YieldAggregator is IYieldAggregator, Ownable {
     event AdapterRegistered(address indexed adapter);
     event AdapterRemoved(address indexed adapter);
     event ThresholdUpdated(uint256 newThreshold);
+    event VaultUpdated(address indexed newVault);
 
     // --- Errors ---
     error AlreadyRegistered();
@@ -34,6 +35,7 @@ contract YieldAggregator is IYieldAggregator, Ownable {
 
     function setVault(address _vault) external onlyOwner {
         vault = _vault;
+        emit VaultUpdated(_vault);
     }
 
     function setRebalanceThreshold(uint256 _threshold) external onlyOwner {
@@ -75,7 +77,15 @@ contract YieldAggregator is IYieldAggregator, Ownable {
 
         for (uint256 i = 0; i < adapters.length; i++) {
             IYieldAdapter adapter = IYieldAdapter(adapters[i]);
-            uint256 apy = adapter.getCurrentAPY();
+
+            // Gracefully handle adapters whose getCurrentAPY() reverts (e.g. stale Chainlink feed)
+            uint256 apy;
+            try adapter.getCurrentAPY() returns (uint256 _apy) {
+                apy = _apy;
+            } catch {
+                apy = 0;
+            }
+
             uint256 risk = adapter.riskScore();
             uint256 riskAdjusted = apy * (100 - risk) / 100;
 
@@ -98,7 +108,22 @@ contract YieldAggregator is IYieldAggregator, Ownable {
 
         for (uint256 i = 0; i < adapters.length; i++) {
             IYieldAdapter adapter = IYieldAdapter(adapters[i]);
-            uint256 apy = adapter.getCurrentAPY();
+
+            // Skip unhealthy adapters
+            try adapter.isHealthy() returns (bool healthy) {
+                if (!healthy) continue;
+            } catch {
+                continue;
+            }
+
+            // Skip adapters whose APY call reverts (e.g. stale Chainlink feed)
+            uint256 apy;
+            try adapter.getCurrentAPY() returns (uint256 _apy) {
+                apy = _apy;
+            } catch {
+                continue;
+            }
+
             uint256 risk = adapter.riskScore();
             uint256 riskAdjusted = apy * (100 - risk) / 100;
 
@@ -135,6 +160,11 @@ contract YieldAggregator is IYieldAggregator, Ownable {
         // Get best yield
         (address best, uint256 bestAPY) = getBestYield();
 
+        // If no healthy adapter available, don't rebalance
+        if (best == address(0)) {
+            return (false, address(0));
+        }
+
         // If no current adapter, definitely rebalance
         if (currentAdapter == address(0)) {
             return (true, best);
@@ -147,9 +177,14 @@ contract YieldAggregator is IYieldAggregator, Ownable {
 
         // Check if yield gap exceeds threshold
         IYieldAdapter current = IYieldAdapter(currentAdapter);
-        uint256 currentAPY = current.getCurrentAPY();
-        uint256 currentRisk = current.riskScore();
-        uint256 currentRiskAdjusted = currentAPY * (100 - currentRisk) / 100;
+        uint256 currentRiskAdjusted;
+        try current.getCurrentAPY() returns (uint256 currentAPY) {
+            uint256 currentRisk = current.riskScore();
+            currentRiskAdjusted = currentAPY * (100 - currentRisk) / 100;
+        } catch {
+            // Current adapter's APY is unavailable — rebalance to healthy adapter
+            return (true, best);
+        }
 
         if (bestAPY > currentRiskAdjusted + rebalanceThreshold) {
             return (true, best);
