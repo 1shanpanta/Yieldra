@@ -81,6 +81,7 @@ export default function DepositPanel() {
   const { redeem, isPending: withdrawPending, isConfirming: withdrawConfirming, isSuccess: withdrawSuccess } = useWithdraw();
   const { apyBps, protocol, paused, totalAssetsRaw, depositCapRaw, refetch } = useVaultStats();
 
+  const isDemo = !address;
   const isLoading = depositPending || depositConfirming || withdrawPending || withdrawConfirming;
 
   // Refetch after successful transactions (once)
@@ -119,7 +120,7 @@ export default function DepositPanel() {
     return null;
   }, [amount, position.usdcBalance, depositCapRaw, totalAssetsRaw]);
 
-  const canDeposit = !!amount && Number(amount) > 0 && !validationError && !isLoading && !paused;
+  const canDeposit = !isDemo && !!amount && Number(amount) > 0 && !validationError && !isLoading && !paused;
 
   const handleDepositClick = () => {
     if (!address || !canDeposit) return;
@@ -148,25 +149,14 @@ export default function DepositPanel() {
     ? (Number(amount) * (apyBps / 10000) / 12).toFixed(2)
     : null;
 
-  if (!address) {
-    return (
-      <div className="neo-card p-7 flex flex-col items-center justify-center gap-4 min-h-[280px] animate-fade-in stagger-3">
-        <div className="w-12 h-12 rounded-full bg-white/5 flex items-center justify-center">
-          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#666" strokeWidth="1.5" aria-hidden="true">
-            <rect x="3" y="11" width="18" height="11" rx="2" ry="2" />
-            <path d="M7 11V7a5 5 0 0 1 10 0v4" />
-          </svg>
-        </div>
-        <p className="text-neutral-500 text-sm text-center">
-          Connect wallet to continue
-        </p>
-      </div>
-    );
-  }
-
   return (
     <>
-      <div className="neo-card p-7 flex flex-col gap-6 animate-fade-in stagger-3">
+      <div className="neo-card p-7 flex flex-col gap-6 animate-fade-in stagger-3 overflow-hidden relative">
+        {isDemo && (
+          <div className="absolute top-3 right-3 text-[10px] px-2 py-0.5 rounded-full bg-white/5 text-neutral-500 font-medium">
+            DEMO
+          </div>
+        )}
         <h2 className="text-sm font-medium text-neutral-300 tracking-wide">Manage Position</h2>
 
         {paused && (
@@ -214,7 +204,7 @@ export default function DepositPanel() {
               <span>{Number(position.usdcBalance).toLocaleString()} USDC</span>
             </div>
 
-            <div className="neo-inset rounded-xl p-3.5 flex items-center gap-3">
+            <div className="neo-inset rounded-xl p-3.5 flex items-center gap-2 min-w-0">
               <input
                 type="text"
                 inputMode="decimal"
@@ -225,17 +215,17 @@ export default function DepositPanel() {
                   if (val === "" || /^\d*\.?\d*$/.test(val)) setAmount(val);
                 }}
                 placeholder="0.00"
-                className="flex-1 bg-transparent text-xl font-medium text-white placeholder-neutral-700 outline-none"
+                className="flex-1 min-w-0 bg-transparent text-xl font-medium text-white placeholder-neutral-700 outline-none"
                 aria-label="Deposit amount in USDC"
               />
               <button
                 onClick={() => setAmount(position.usdcBalance)}
-                className="text-[11px] text-neutral-500 hover:text-white font-medium px-2 py-1 rounded transition-colors"
+                className="shrink-0 text-[11px] text-neutral-500 hover:text-white font-medium px-2 py-1 rounded transition-colors"
                 aria-label="Set maximum deposit amount"
               >
                 MAX
               </button>
-              <span className="text-sm text-neutral-600">USDC</span>
+              <span className="shrink-0 text-sm text-neutral-600">USDC</span>
             </div>
 
             {validationError && (
@@ -255,7 +245,7 @@ export default function DepositPanel() {
               className="w-full py-3 rounded-xl bg-[#C9A96E] hover:bg-[#B8985D] text-[#0d0d0d] font-semibold text-sm transition-all disabled:opacity-30 disabled:bg-neutral-800 disabled:text-neutral-600 disabled:cursor-not-allowed neo-btn"
               aria-label="Deposit USDC into vault"
             >
-              {isLoading ? "Processing..." : paused ? "Vault Paused" : "Deposit USDC"}
+              {isDemo ? "Connect Wallet to Deposit" : isLoading ? "Processing..." : paused ? "Vault Paused" : "Deposit USDC"}
             </button>
           </div>
         ) : (
@@ -271,11 +261,11 @@ export default function DepositPanel() {
 
             <button
               onClick={handleWithdrawClick}
-              disabled={isLoading || position.sharesRaw === 0n}
+              disabled={isDemo || isLoading || position.sharesRaw === 0n}
               className="w-full py-3 rounded-xl bg-white/[0.06] hover:bg-white/[0.1] text-white font-medium text-sm transition-all disabled:opacity-30 disabled:cursor-not-allowed neo-btn"
               aria-label="Withdraw all funds from vault"
             >
-              {isLoading ? "Processing..." : "Withdraw All"}
+              {isDemo ? "Connect Wallet to Withdraw" : isLoading ? "Processing..." : "Withdraw All"}
             </button>
           </div>
         )}

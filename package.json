@@ -9,7 +9,7 @@
     "node": "hardhat node",
     "deploy": "hardhat run scripts/deploy.ts --network localhost",
     "seed": "hardhat run scripts/seed.ts --network localhost",
-    "dev": "concurrently -k -n node,deploy,frontend -c blue,green,magenta \"hardhat node\" \"wait-on tcp:8545 && hardhat run scripts/deploy.ts --network localhost && wait-on tcp:3000 && open http://localhost:3000\" \"wait-on tcp:8545 && cd frontend && bun run dev\"",
+    "dev": "concurrently --kill-others-on-fail -n node,deploy,frontend -c blue,green,magenta \"hardhat node\" \"wait-on tcp:8545 && hardhat run scripts/deploy.ts --network localhost && wait-on tcp:3000 && open http://localhost:3000\" \"wait-on tcp:8545 && cd frontend && bun run dev\"",
     "deploy:sepolia": "hardhat run scripts/deploy.ts --network sepolia",
     "lint:sol": "solhint 'contracts/**/*.sol'"
   },

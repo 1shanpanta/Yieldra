@@ -120,12 +120,12 @@ describe("HowItWorks component", () => {
   });
 });
 
-describe("DepositPanel — not connected", () => {
+describe("DepositPanel — not connected (demo mode)", () => {
   beforeEach(() => {
     vi.resetModules();
   });
 
-  it("shows connect wallet message when not connected", async () => {
+  it("shows demo badge and manage position when not connected", async () => {
     const wagmi = await import("wagmi");
     vi.mocked(wagmi.useAccount).mockReturnValue({
       address: undefined,
@@ -143,7 +143,9 @@ describe("DepositPanel — not connected", () => {
     const { default: DepositPanel } = await import("@/components/DepositPanel");
     render(<DepositPanel />);
 
-    expect(screen.getByText("Connect wallet to continue")).toBeInTheDocument();
+    expect(screen.getByText("DEMO")).toBeInTheDocument();
+    expect(screen.getByText("Manage Position")).toBeInTheDocument();
+    expect(screen.getByText("Connect Wallet to Deposit")).toBeInTheDocument();
   });
 });
 
