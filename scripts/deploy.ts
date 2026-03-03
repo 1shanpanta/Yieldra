@@ -1,4 +1,6 @@
 import { ethers } from "hardhat";
+import * as fs from "fs";
+import * as path from "path";
 
 async function main() {
   const [deployer] = await ethers.getSigners();
@@ -69,15 +71,39 @@ async function main() {
   const mintAmount = ethers.parseUnits("100000", 6); // 100k USDC
   await usdc.mint(deployer.address, mintAmount);
 
+  // Generate contract addresses JSON for frontend
+  const addresses = {
+    vault: await vault.getAddress(),
+    aggregator: await aggregator.getAddress(),
+    usdc: await usdc.getAddress(),
+    keeper: await keeper.getAddress(),
+  };
+
+  const frontendConfigDir = path.join(__dirname, "..", "frontend", "src", "config");
+  const outputPath = path.join(frontendConfigDir, "deployed-addresses.json");
+  fs.writeFileSync(outputPath, JSON.stringify(addresses, null, 2));
+  console.log(`\nContract addresses written to ${outputPath}`);
+
+  // Also write a .env.local for the frontend
+  const envPath = path.join(__dirname, "..", "frontend", ".env.local");
+  const envContent = [
+    `NEXT_PUBLIC_VAULT_ADDRESS=${addresses.vault}`,
+    `NEXT_PUBLIC_AGGREGATOR_ADDRESS=${addresses.aggregator}`,
+    `NEXT_PUBLIC_USDC_ADDRESS=${addresses.usdc}`,
+    `NEXT_PUBLIC_KEEPER_ADDRESS=${addresses.keeper}`,
+    `NEXT_PUBLIC_WC_PROJECT_ID=demo`,
+  ].join("\n");
+  fs.writeFileSync(envPath, envContent + "\n");
+  console.log(`Frontend .env.local written to ${envPath}`);
+
   console.log("\n--- Deployment Complete ---");
-  console.log(`USDC:       ${await usdc.getAddress()}`);
-  console.log(`Vault:      ${await vault.getAddress()}`);
-  console.log(`Aggregator: ${await aggregator.getAddress()}`);
-  console.log(`Keeper:     ${await keeper.getAddress()}`);
+  console.log(`USDC:       ${addresses.usdc}`);
+  console.log(`Vault:      ${addresses.vault}`);
+  console.log(`Aggregator: ${addresses.aggregator}`);
+  console.log(`Keeper:     ${addresses.keeper}`);
   console.log(`Aave:       ${await aaveAdapter.getAddress()}`);
   console.log(`Compound:   ${await compoundAdapter.getAddress()}`);
   console.log(`Treasury:   ${await treasuryAdapter.getAddress()}`);
-  console.log("\nUpdate frontend/src/config/contracts.ts with these addresses.");
 }
 
 main().catch((error) => {

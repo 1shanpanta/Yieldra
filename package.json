@@ -4,7 +4,14 @@
   "description": "Auto-rebalancing ERC-4626 vault powered by Chainlink Automation",
   "main": "index.js",
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "compile": "hardhat compile",
+    "test": "hardhat test",
+    "node": "hardhat node",
+    "deploy": "hardhat run scripts/deploy.ts --network localhost",
+    "seed": "hardhat run scripts/seed.ts --network localhost",
+    "dev": "concurrently -k -n node,deploy,frontend -c blue,green,magenta \"hardhat node\" \"wait-on tcp:8545 && hardhat run scripts/deploy.ts --network localhost && wait-on tcp:3000 && open http://localhost:3000\" \"wait-on tcp:8545 && cd frontend && bun run dev\"",
+    "deploy:sepolia": "hardhat run scripts/deploy.ts --network sepolia",
+    "lint:sol": "solhint 'contracts/**/*.sol'"
   },
   "keywords": [],
   "author": "",
@@ -12,9 +19,11 @@
   "devDependencies": {
     "@nomicfoundation/hardhat-toolbox": "^6.1.2",
     "@types/node": "^25.3.2",
+    "concurrently": "^9.2.1",
     "hardhat": "^2.28.6",
     "ts-node": "^10.9.2",
-    "typescript": "^5.9.3"
+    "typescript": "^5.9.3",
+    "wait-on": "^9.0.4"
   },
   "dependencies": {
     "@chainlink/contracts": "^1.5.0",
