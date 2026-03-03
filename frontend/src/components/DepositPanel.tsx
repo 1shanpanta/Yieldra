@@ -3,6 +3,7 @@
 import { useState, useMemo, useEffect, useCallback } from "react";
 import { useAccount } from "wagmi";
 import { useUserPosition, useDeposit, useWithdraw, useVaultStats } from "@/hooks/useVault";
+import type { SelectedProtocol } from "@/app/page";
 
 function ConfirmModal({
   title,
@@ -65,7 +66,7 @@ function ConfirmModal({
   );
 }
 
-export default function DepositPanel() {
+export default function DepositPanel({ selectedProtocol }: { selectedProtocol: SelectedProtocol | null }) {
   const { address } = useAccount();
   const [tab, setTab] = useState<"deposit" | "withdraw">("deposit");
   const [amount, setAmount] = useState("");
@@ -145,8 +146,12 @@ export default function DepositPanel() {
     redeem(position.sharesRaw, address);
   };
 
+  // Use selected protocol's APY if one is chosen, otherwise vault's current APY
+  const effectiveApyBps = selectedProtocol ? selectedProtocol.apyBps : apyBps;
+  const effectiveProtocol = selectedProtocol ? selectedProtocol.name : protocol;
+
   const projectedMonthly = amount && Number(amount) > 0
-    ? (Number(amount) * (apyBps / 10000) / 12).toFixed(2)
+    ? (Number(amount) * (effectiveApyBps / 10000) / 12).toFixed(2)
     : null;
 
   return (
@@ -199,6 +204,18 @@ export default function DepositPanel() {
 
         {tab === "deposit" ? (
           <div role="tabpanel" id="panel-deposit" aria-labelledby="tab-deposit" className="flex flex-col gap-6">
+            {selectedProtocol && (
+              <div className="flex items-center justify-between rounded-lg bg-[#C9A96E]/[0.06] border border-[#C9A96E]/15 px-3.5 py-2.5">
+                <div className="flex items-center gap-2">
+                  <div className="w-1.5 h-1.5 rounded-full bg-[#C9A96E]" />
+                  <span className="text-xs text-[#C9A96E] font-medium">{selectedProtocol.name}</span>
+                </div>
+                <span className="text-xs text-neutral-400">
+                  {(selectedProtocol.apyBps / 100).toFixed(2)}% APY
+                </span>
+              </div>
+            )}
+
             <div className="flex justify-between text-xs text-neutral-500">
               <span>Wallet Balance</span>
               <span>{Number(position.usdcBalance).toLocaleString()} USDC</span>
@@ -235,7 +252,8 @@ export default function DepositPanel() {
             {projectedMonthly && !validationError && (
               <div className="text-xs text-neutral-500 bg-white/[0.02] rounded-lg px-3.5 py-2.5 border border-white/[0.04]">
                 Est. monthly yield: <span className="text-[#C9A96E] font-medium">${projectedMonthly}</span>
-                {" "}at {(apyBps / 100).toFixed(2)}% APY
+                {" "}at {(effectiveApyBps / 100).toFixed(2)}% APY
+                {selectedProtocol && <span className="text-neutral-600"> via {selectedProtocol.name}</span>}
               </div>
             )}
 
@@ -245,7 +263,7 @@ export default function DepositPanel() {
               className="w-full py-3 rounded-xl bg-[#C9A96E] hover:bg-[#B8985D] text-[#0d0d0d] font-semibold text-sm transition-all disabled:opacity-30 disabled:bg-neutral-800 disabled:text-neutral-600 disabled:cursor-not-allowed neo-btn"
               aria-label="Deposit USDC into vault"
             >
-              {isDemo ? "Connect Wallet to Deposit" : isLoading ? "Processing..." : paused ? "Vault Paused" : "Deposit USDC"}
+              {isDemo ? "Connect Wallet to Deposit" : isLoading ? "Processing..." : paused ? "Vault Paused" : selectedProtocol ? `Deposit into ${selectedProtocol.name}` : "Deposit USDC"}
             </button>
           </div>
         ) : (
@@ -290,8 +308,8 @@ export default function DepositPanel() {
           title="Confirm Deposit"
           details={[
             { label: "Amount", value: `${Number(amount).toLocaleString()} USDC` },
-            { label: "Current APY", value: `${(apyBps / 100).toFixed(2)}%` },
-            { label: "Protocol", value: protocol },
+            { label: "Protocol", value: effectiveProtocol },
+            { label: "APY", value: `${(effectiveApyBps / 100).toFixed(2)}%` },
             ...(projectedMonthly ? [{ label: "Est. Monthly", value: `$${projectedMonthly}` }] : []),
           ]}
           onConfirm={handleDepositConfirm}

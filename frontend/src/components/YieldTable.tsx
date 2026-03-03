@@ -2,6 +2,7 @@
 
 import { useYieldData, useVaultStats } from "@/hooks/useVault";
 import { formatUnits } from "viem";
+import type { SelectedProtocol } from "@/app/page";
 
 function getRiskColor(score: number): string {
   if (score <= 5) return "text-emerald-500/80";
@@ -15,7 +16,12 @@ function getRiskLabel(score: number): string {
   return "Higher";
 }
 
-export default function YieldTable() {
+interface YieldTableProps {
+  selectedAdapter: `0x${string}` | null;
+  onSelect: (protocol: SelectedProtocol) => void;
+}
+
+export default function YieldTable({ selectedAdapter, onSelect }: YieldTableProps) {
   const { yields, shouldRebalance, rebalanceTarget, isLoading } = useYieldData();
   const { protocol: activeProtocol } = useVaultStats();
 
@@ -35,7 +41,6 @@ export default function YieldTable() {
   const targetYield = yields.find(
     (y) => rebalanceTarget && y.adapter.toLowerCase() === rebalanceTarget.toLowerCase()
   );
-  // Use actual risk-adjusted APY from the active protocol's yield data
   const currentYield = yields.find((y) => y.protocolName === activeProtocol);
   const currentRiskAdj = currentYield ? Number(currentYield.riskAdjustedAPY) : 0;
   const targetRiskAdj = targetYield ? Number(targetYield.riskAdjustedAPY) : 0;
@@ -52,33 +57,59 @@ export default function YieldTable() {
         )}
       </div>
 
-      <div className="space-y-3">
+      <div className="space-y-3" role="listbox" aria-label="Select a yield protocol">
         {yields.map((y, i) => {
           const isActive = y.protocolName === activeProtocol;
+          const isSelected = selectedAdapter
+            ? y.adapter.toLowerCase() === selectedAdapter.toLowerCase()
+            : false;
           const apy = Number(y.apy) / 100;
           const riskAdj = Number(y.riskAdjustedAPY) / 100;
           const risk = Number(y.riskScore);
           const deposited = formatUnits(y.deposited, 6);
 
+          const handleSelect = () => {
+            onSelect({
+              name: y.protocolName,
+              apyBps: Number(y.apy),
+              riskAdjBps: Number(y.riskAdjustedAPY),
+              riskScore: risk,
+              adapter: y.adapter,
+            });
+          };
+
           return (
-            <div
+            <button
               key={i}
-              className={`rounded-xl p-4 transition-all ${
-                isActive
-                  ? "bg-white/[0.03] border border-white/[0.08] glow-warm"
-                  : "bg-[#0f0f0f] border border-white/[0.03] hover:border-white/[0.06]"
+              type="button"
+              role="option"
+              aria-selected={isSelected}
+              onClick={handleSelect}
+              className={`w-full text-left rounded-xl p-4 transition-all cursor-pointer ${
+                isSelected
+                  ? "bg-[#C9A96E]/[0.08] border border-[#C9A96E]/30 glow-warm"
+                  : isActive
+                    ? "bg-white/[0.03] border border-white/[0.08]"
+                    : "bg-[#0f0f0f] border border-white/[0.03] hover:border-white/[0.08] hover:bg-white/[0.02]"
               }`}
             >
               {/* Desktop */}
               <div className="hidden sm:flex items-center justify-between">
                 <div className="flex items-center gap-3">
-                  <div className={`w-1.5 h-1.5 rounded-full ${isActive ? "bg-[#C9A96E]" : "bg-neutral-700"}`} />
+                  <div className={`w-2 h-2 rounded-full transition-colors ${
+                    isSelected ? "bg-[#C9A96E]" : isActive ? "bg-[#C9A96E]/60" : "bg-neutral-700"
+                  }`} />
                   <div>
                     <div className="flex items-center gap-2">
                       <span className="text-sm font-medium text-white">{y.protocolName}</span>
                       {isActive && (
                         <span className="text-[10px] px-1.5 py-0.5 rounded bg-white/5 text-neutral-400">
                           ACTIVE
+                        </span>
+                      )}
+                      {isSelected && (
+                        <span className="text-[10px] px-1.5 py-0.5 rounded bg-[#C9A96E]/15 text-[#C9A96E] font-medium">
+                          SELECTED
                         </span>
                       )}
                     </div>
@@ -111,24 +142,37 @@ export default function YieldTable() {
               {/* Mobile */}
               <div className="flex sm:hidden flex-col gap-2">
                 <div className="flex items-center gap-2">
-                  <div className={`w-1.5 h-1.5 rounded-full ${isActive ? "bg-[#C9A96E]" : "bg-neutral-700"}`} />
+                  <div className={`w-2 h-2 rounded-full ${
+                    isSelected ? "bg-[#C9A96E]" : isActive ? "bg-[#C9A96E]/60" : "bg-neutral-700"
+                  }`} />
                   <span className="text-sm font-medium text-white">{y.protocolName}</span>
                   {isActive && (
                     <span className="text-[10px] px-1.5 py-0.5 rounded bg-white/5 text-neutral-400">
                       ACTIVE
                     </span>
                   )}
+                  {isSelected && (
+                    <span className="text-[10px] px-1.5 py-0.5 rounded bg-[#C9A96E]/15 text-[#C9A96E]">
+                      SELECTED
+                    </span>
+                  )}
                 </div>
-                <div className="flex items-center justify-between text-xs pl-4">
+                <div className="flex items-center justify-between text-xs pl-5">
                   <span className={getRiskColor(risk)}>Risk: {risk}</span>
                   <span className="text-white">{apy.toFixed(2)}%</span>
                   <span className="text-[#C9A96E]">{riskAdj.toFixed(2)}% adj</span>
                 </div>
               </div>
-            </div>
+            </button>
           );
         })}
       </div>
+
+      {!selectedAdapter && (
+        <p className="text-[11px] text-neutral-600 text-center">
+          Select a protocol above to see projected earnings
+        </p>
+      )}
 
       {yields.length === 0 && (
         <div className="text-center py-8 text-neutral-600 text-sm">

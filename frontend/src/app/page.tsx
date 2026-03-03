@@ -1,5 +1,6 @@
 "use client";
 
+import { useState } from "react";
 import Header from "@/components/Header";
 import VaultStats from "@/components/VaultStats";
 import DepositPanel from "@/components/DepositPanel";
@@ -7,7 +8,17 @@ import YieldTable from "@/components/YieldTable";
 import ApyChart from "@/components/ApyChart";
 import HowItWorks from "@/components/HowItWorks";
 
+export interface SelectedProtocol {
+  name: string;
+  apyBps: number;
+  riskAdjBps: number;
+  riskScore: number;
+  adapter: `0x${string}`;
+}
+
 export default function Home() {
+  const [selectedProtocol, setSelectedProtocol] = useState<SelectedProtocol | null>(null);
+
   return (
     <div className="min-h-screen flex flex-col bg-gradient-animated">
       <Header />
@@ -19,11 +30,14 @@ export default function Home() {
         {/* Main Content: Yield Table + Deposit Panel */}
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
           <div className="lg:col-span-2 flex flex-col gap-6">
-            <YieldTable />
+            <YieldTable
+              selectedAdapter={selectedProtocol?.adapter ?? null}
+              onSelect={setSelectedProtocol}
+            />
             <ApyChart />
           </div>
           <div>
-            <DepositPanel />
+            <DepositPanel selectedProtocol={selectedProtocol} />
           </div>
         </div>
 

@@ -141,7 +141,7 @@ describe("DepositPanel — not connected (demo mode)", () => {
     });
 
     const { default: DepositPanel } = await import("@/components/DepositPanel");
-    render(<DepositPanel />);
+    render(<DepositPanel selectedProtocol={null} />);
 
     expect(screen.getByText("DEMO")).toBeInTheDocument();
     expect(screen.getByText("Manage Position")).toBeInTheDocument();
@@ -211,14 +211,14 @@ describe("DepositPanel — connected", () => {
 
   it("renders Manage Position heading", async () => {
     const { default: DepositPanel } = await import("@/components/DepositPanel");
-    render(<DepositPanel />);
+    render(<DepositPanel selectedProtocol={null} />);
 
     expect(screen.getByText("Manage Position")).toBeInTheDocument();
   });
 
   it("renders deposit and withdraw tabs", async () => {
     const { default: DepositPanel } = await import("@/components/DepositPanel");
-    render(<DepositPanel />);
+    render(<DepositPanel selectedProtocol={null} />);
 
     expect(screen.getByRole("tab", { name: /deposit/i })).toBeInTheDocument();
     expect(screen.getByRole("tab", { name: /withdraw/i })).toBeInTheDocument();
@@ -226,7 +226,7 @@ describe("DepositPanel — connected", () => {
 
   it("has deposit tab selected by default", async () => {
     const { default: DepositPanel } = await import("@/components/DepositPanel");
-    render(<DepositPanel />);
+    render(<DepositPanel selectedProtocol={null} />);
 
     const depositTab = screen.getByRole("tab", { name: /deposit/i });
     expect(depositTab).toHaveAttribute("aria-selected", "true");
@@ -234,7 +234,7 @@ describe("DepositPanel — connected", () => {
 
   it("renders deposit amount input", async () => {
     const { default: DepositPanel } = await import("@/components/DepositPanel");
-    render(<DepositPanel />);
+    render(<DepositPanel selectedProtocol={null} />);
 
     const input = screen.getByLabelText(/^deposit amount in usdc$/i);
     expect(input).toBeInTheDocument();
@@ -243,21 +243,21 @@ describe("DepositPanel — connected", () => {
 
   it("renders MAX button", async () => {
     const { default: DepositPanel } = await import("@/components/DepositPanel");
-    render(<DepositPanel />);
+    render(<DepositPanel selectedProtocol={null} />);
 
     expect(screen.getByLabelText(/maximum deposit/i)).toBeInTheDocument();
   });
 
   it("renders deposit button", async () => {
     const { default: DepositPanel } = await import("@/components/DepositPanel");
-    render(<DepositPanel />);
+    render(<DepositPanel selectedProtocol={null} />);
 
     expect(screen.getByLabelText(/deposit usdc/i)).toBeInTheDocument();
   });
 
   it("switches to withdraw tab", async () => {
     const { default: DepositPanel } = await import("@/components/DepositPanel");
-    render(<DepositPanel />);
+    render(<DepositPanel selectedProtocol={null} />);
 
     const withdrawTab = screen.getByRole("tab", { name: /withdraw/i });
     await userEvent.click(withdrawTab);
@@ -268,7 +268,7 @@ describe("DepositPanel — connected", () => {
 
   it("has proper tabpanel structure", async () => {
     const { default: DepositPanel } = await import("@/components/DepositPanel");
-    render(<DepositPanel />);
+    render(<DepositPanel selectedProtocol={null} />);
 
     const tabpanel = screen.getByRole("tabpanel");
     expect(tabpanel).toBeInTheDocument();
@@ -276,7 +276,7 @@ describe("DepositPanel — connected", () => {
 
   it("has tablist with label", async () => {
     const { default: DepositPanel } = await import("@/components/DepositPanel");
-    render(<DepositPanel />);
+    render(<DepositPanel selectedProtocol={null} />);
 
     const tablist = screen.getByRole("tablist", { name: /deposit or withdraw/i });
     expect(tablist).toBeInTheDocument();
