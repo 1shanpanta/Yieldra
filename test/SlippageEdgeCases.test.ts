@@ -1,6 +1,6 @@
 import { expect } from "chai";
 import { ethers } from "hardhat";
-import { loadFixture } from "@nomicfoundation/hardhat-network-helpers";
+import { loadFixture, time } from "@nomicfoundation/hardhat-network-helpers";
 
 describe("Slippage & Edge Cases", function () {
   async function deployFixture() {
@@ -23,8 +23,7 @@ describe("Slippage & Edge Cases", function () {
     await aggregator.registerAdapter(await aave.getAddress());
     await aggregator.registerAdapter(await compound.getAddress());
     await aggregator.registerAdapter(await treasury.getAddress());
-    await aggregator.setVault(await vault.getAddress());
-    await vault.setKeeper(await owner.getAddress());
+    await vault.setCREForwarder(await owner.getAddress());
     await vault.setActiveAdapter(await treasury.getAddress());
 
     // Fund users
@@ -129,8 +128,10 @@ describe("Slippage & Edge Cases", function () {
       expect(await vault.currentProtocol()).to.equal("Compound V3");
       expect(await compound.getTotalDeposited()).to.equal(deposit);
 
+      // Wait for cooldown
+      await time.increase(3601);
+
       // Compound → Aave
-      await ethers.provider.send("evm_mine", []);
       await vault.rebalance(await aave.getAddress());
       expect(await vault.currentProtocol()).to.equal("Aave V3");
       expect(await aave.getTotalDeposited()).to.equal(deposit);
@@ -147,12 +148,12 @@ describe("Slippage & Edge Cases", function () {
       await ethers.provider.send("evm_mine", []);
       await vault.rebalance(await compound.getAddress());
 
-      // Compound → Aave
-      await ethers.provider.send("evm_mine", []);
+      // Compound → Aave (wait for cooldown)
+      await time.increase(3601);
       await vault.rebalance(await aave.getAddress());
 
-      // Aave → Compound
-      await ethers.provider.send("evm_mine", []);
+      // Aave → Compound (wait for cooldown)
+      await time.increase(3601);
       await vault.rebalance(await compound.getAddress());
 
       expect(await vault.currentProtocol()).to.equal("Compound V3");
@@ -172,7 +173,7 @@ describe("Slippage & Edge Cases", function () {
       await ethers.provider.send("evm_mine", []);
       await vault.rebalance(await compound.getAddress());
 
-      await ethers.provider.send("evm_mine", []);
+      await time.increase(3601);
       await vault.rebalance(await aave.getAddress());
 
       expect(await vault.totalAssets()).to.equal(totalBefore);
@@ -414,11 +415,11 @@ describe("Slippage & Edge Cases", function () {
       ).to.be.revertedWithCustomError(vault, "OwnableUnauthorizedAccount");
     });
 
-    it("should reject non-owner setKeeper", async function () {
+    it("should reject non-owner setCREForwarder", async function () {
       const { vault, user } = await loadFixture(deployFixture);
 
       await expect(
-        vault.connect(user).setKeeper(await user.getAddress())
+        vault.connect(user).setCREForwarder(await user.getAddress())
       ).to.be.revertedWithCustomError(vault, "OwnableUnauthorizedAccount");
     });
 
@@ -446,12 +447,12 @@ describe("Slippage & Edge Cases", function () {
       ).to.be.revertedWithCustomError(vault, "OwnableUnauthorizedAccount");
     });
 
-    it("should reject non-keeper rebalance", async function () {
+    it("should reject non-CRE rebalance", async function () {
       const { vault, user, compound } = await loadFixture(deployFixture);
 
       await expect(
         vault.connect(user).rebalance(await compound.getAddress())
-      ).to.be.revertedWithCustomError(vault, "OnlyKeeper");
+      ).to.be.revertedWithCustomError(vault, "OnlyCRE");
     });
   });
 

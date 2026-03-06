@@ -1,10 +1,10 @@
 import { expect } from "chai";
 import { ethers } from "hardhat";
-import { loadFixture } from "@nomicfoundation/hardhat-toolbox/network-helpers";
+import { loadFixture, time } from "@nomicfoundation/hardhat-toolbox/network-helpers";
 
 describe("TreasuryVault", function () {
   async function deployFixture() {
-    const [owner, user, keeper] = await ethers.getSigners();
+    const [owner, user, other] = await ethers.getSigners();
 
     // Deploy mock USDC (6 decimals)
     const MockERC20 = await ethers.getContractFactory("MockERC20");
@@ -34,19 +34,11 @@ describe("TreasuryVault", function () {
     const YieldAggregator = await ethers.getContractFactory("YieldAggregator");
     const aggregator = await YieldAggregator.deploy();
 
-    // Deploy keeper
-    const VaultKeeper = await ethers.getContractFactory("VaultKeeper");
-    const vaultKeeper = await VaultKeeper.deploy(
-      await vault.getAddress(),
-      await aggregator.getAddress()
-    );
-
-    // Setup: register adapters, set vault, set keeper
+    // Setup: register adapters, set CRE forwarder
     await aggregator.registerAdapter(await aaveAdapter.getAddress());
     await aggregator.registerAdapter(await compoundAdapter.getAddress());
     await aggregator.registerAdapter(await treasuryAdapter.getAddress());
-    await aggregator.setVault(await vault.getAddress());
-    await vault.setKeeper(await vaultKeeper.getAddress());
+    await vault.setCREForwarder(await owner.getAddress());
     await vault.setActiveAdapter(await treasuryAdapter.getAddress());
 
     // Mint USDC to user
@@ -55,7 +47,7 @@ describe("TreasuryVault", function () {
     await usdc.connect(user).approve(await vault.getAddress(), depositAmount);
 
     return {
-      owner, user, keeper, usdc, vault, aggregator, vaultKeeper,
+      owner, user, other, usdc, vault, aggregator,
       aaveAdapter, compoundAdapter, treasuryAdapter, depositAmount
     };
   }
@@ -71,6 +63,16 @@ describe("TreasuryVault", function () {
     it("should set owner correctly", async function () {
       const { vault, owner } = await loadFixture(deployFixture);
       expect(await vault.owner()).to.equal(await owner.getAddress());
+    });
+
+    it("should have MIN_REBALANCE_INTERVAL of 1 hour", async function () {
+      const { vault } = await loadFixture(deployFixture);
+      expect(await vault.MIN_REBALANCE_INTERVAL()).to.equal(3600);
+    });
+
+    it("should initialize lastRebalanceTime to 0", async function () {
+      const { vault } = await loadFixture(deployFixture);
+      expect(await vault.lastRebalanceTime()).to.equal(0);
     });
   });
 
@@ -110,7 +112,7 @@ describe("TreasuryVault", function () {
 
   describe("Rebalancing", function () {
     it("should rebalance from treasury to higher-yield adapter", async function () {
-      const { vault, user, vaultKeeper, owner, treasuryAdapter, compoundAdapter, depositAmount } =
+      const { vault, user, owner, treasuryAdapter, compoundAdapter, depositAmount } =
         await loadFixture(deployFixture);
 
       // Deposit into vault (goes to treasury adapter initially)
@@ -118,7 +120,6 @@ describe("TreasuryVault", function () {
       expect(await treasuryAdapter.getTotalDeposited()).to.equal(depositAmount);
 
       // Rebalance to compound (higher yield)
-      await vault.setKeeper(await owner.getAddress()); // use owner as keeper for test
       await vault.rebalance(await compoundAdapter.getAddress());
 
       // Funds moved
@@ -128,20 +129,105 @@ describe("TreasuryVault", function () {
     });
 
     it("should reject rebalance to same adapter", async function () {
-      const { vault, owner, treasuryAdapter } = await loadFixture(deployFixture);
-      await vault.setKeeper(await owner.getAddress());
+      const { vault, treasuryAdapter } = await loadFixture(deployFixture);
 
       await expect(
         vault.rebalance(await treasuryAdapter.getAddress())
       ).to.be.revertedWithCustomError(vault, "SameAdapter");
     });
 
-    it("should reject rebalance from non-keeper", async function () {
+    it("should reject rebalance from non-CRE address", async function () {
       const { vault, user, compoundAdapter } = await loadFixture(deployFixture);
 
       await expect(
         vault.connect(user).rebalance(await compoundAdapter.getAddress())
-      ).to.be.revertedWithCustomError(vault, "OnlyKeeper");
+      ).to.be.revertedWithCustomError(vault, "OnlyCRE");
+    });
+
+    it("should update lastRebalanceTime after rebalance", async function () {
+      const { vault, compoundAdapter } = await loadFixture(deployFixture);
+
+      await vault.rebalance(await compoundAdapter.getAddress());
+
+      expect(await vault.lastRebalanceTime()).to.be.gt(0);
+    });
+
+    it("should enforce cooldown between rebalances", async function () {
+      const { vault, compoundAdapter, aaveAdapter } = await loadFixture(deployFixture);
+
+      // First rebalance: treasury -> compound
+      await vault.rebalance(await compoundAdapter.getAddress());
+
+      // Immediate second rebalance should fail
+      await expect(
+        vault.rebalance(await aaveAdapter.getAddress())
+      ).to.be.revertedWithCustomError(vault, "CooldownActive");
+    });
+
+    it("should allow rebalance after cooldown expires", async function () {
+      const { vault, compoundAdapter, aaveAdapter } = await loadFixture(deployFixture);
+
+      // First rebalance: treasury -> compound
+      await vault.rebalance(await compoundAdapter.getAddress());
+      expect(await vault.currentProtocol()).to.equal("Compound V3");
+
+      // Advance past cooldown
+      await time.increase(3601);
+
+      // Second rebalance: compound -> aave
+      await vault.rebalance(await aaveAdapter.getAddress());
+      expect(await vault.currentProtocol()).to.equal("Aave V3");
+    });
+
+    it("should emit Rebalanced and AdapterChanged events", async function () {
+      const { vault, user, treasuryAdapter, compoundAdapter, depositAmount } =
+        await loadFixture(deployFixture);
+
+      await vault.connect(user).deposit(depositAmount, await user.getAddress());
+
+      await expect(vault.rebalance(await compoundAdapter.getAddress()))
+        .to.emit(vault, "Rebalanced")
+        .withArgs(
+          await treasuryAdapter.getAddress(),
+          await compoundAdapter.getAddress(),
+          depositAmount
+        )
+        .and.to.emit(vault, "AdapterChanged")
+        .withArgs(await compoundAdapter.getAddress());
+    });
+  });
+
+  describe("CRE Forwarder", function () {
+    it("should allow owner to set CRE forwarder", async function () {
+      const { vault, other } = await loadFixture(deployFixture);
+
+      await vault.setCREForwarder(await other.getAddress());
+      expect(await vault.creForwarder()).to.equal(await other.getAddress());
+    });
+
+    it("should emit CREForwarderUpdated event", async function () {
+      const { vault, other } = await loadFixture(deployFixture);
+
+      await expect(vault.setCREForwarder(await other.getAddress()))
+        .to.emit(vault, "CREForwarderUpdated")
+        .withArgs(await other.getAddress());
+    });
+
+    it("should allow CRE forwarder to call rebalance", async function () {
+      const { vault, other, compoundAdapter } = await loadFixture(deployFixture);
+
+      await vault.setCREForwarder(await other.getAddress());
+      await vault.connect(other).rebalance(await compoundAdapter.getAddress());
+
+      expect(await vault.currentProtocol()).to.equal("Compound V3");
+    });
+
+    it("should reject setCREForwarder from non-owner", async function () {
+      const { vault, user, other } = await loadFixture(deployFixture);
+
+      await expect(
+        vault.connect(user).setCREForwarder(await other.getAddress())
+      ).to.be.revertedWithCustomError(vault, "OwnableUnauthorizedAccount");
     });
   });
 
@@ -153,6 +239,16 @@ describe("TreasuryVault", function () {
 
       await expect(
         vault.connect(user).deposit(depositAmount, await user.getAddress())
+      ).to.be.revertedWithCustomError(vault, "VaultPaused");
+    });
+
+    it("should block rebalance when paused", async function () {
+      const { vault, owner, compoundAdapter } = await loadFixture(deployFixture);
+
+      await vault.connect(owner).setPaused(true);
+
+      await expect(
+        vault.rebalance(await compoundAdapter.getAddress())
       ).to.be.revertedWithCustomError(vault, "VaultPaused");
     });
   });
@@ -167,158 +263,6 @@ describe("TreasuryVault", function () {
     it("should return current protocol name", async function () {
       const { vault } = await loadFixture(deployFixture);
       expect(await vault.currentProtocol()).to.equal("US Treasury");
-    });
-  });
-});
-
-describe("YieldAggregator", function () {
-  async function deployFixture() {
-    const [owner] = await ethers.getSigners();
-
-    const MockERC20 = await ethers.getContractFactory("MockERC20");
-    const usdc = await MockERC20.deploy("USD Coin", "USDC", 6);
-
-    const MockYieldAdapter = await ethers.getContractFactory("MockYieldAdapter");
-    const aave = await MockYieldAdapter.deploy("Aave V3", await usdc.getAddress(), 450, 10);
-    const compound = await MockYieldAdapter.deploy("Compound V3", await usdc.getAddress(), 500, 12);
-    const treasury = await MockYieldAdapter.deploy("US Treasury", await usdc.getAddress(), 430, 5);
-
-    const TreasuryVault = await ethers.getContractFactory("TreasuryVault");
-    const vault = await TreasuryVault.deploy(await usdc.getAddress(), "TV", "TV");
-
-    const YieldAggregator = await ethers.getContractFactory("YieldAggregator");
-    const aggregator = await YieldAggregator.deploy();
-
-    await aggregator.registerAdapter(await aave.getAddress());
-    await aggregator.registerAdapter(await compound.getAddress());
-    await aggregator.registerAdapter(await treasury.getAddress());
-    await aggregator.setVault(await vault.getAddress());
-    await vault.setActiveAdapter(await treasury.getAddress());
-
-    return { owner, usdc, aave, compound, treasury, vault, aggregator };
-  }
-
-  describe("Yield comparison", function () {
-    it("should return all yields", async function () {
-      const { aggregator } = await loadFixture(deployFixture);
-      const yields = await aggregator.getAllYields();
-      expect(yields.length).to.equal(3);
-      expect(yields[0].protocolName).to.equal("Aave V3");
-    });
-
-    it("should pick best risk-adjusted yield", async function () {
-      const { aggregator, compound } = await loadFixture(deployFixture);
-      // Aave: 450 * (100-10)/100 = 405
-      // Compound: 500 * (100-12)/100 = 440
-      // Treasury: 430 * (100-5)/100 = 408.5 → 408
-      const [bestAdapter] = await aggregator.getBestYield();
-      // Compound should win with 440 risk-adjusted bps
-      expect(bestAdapter).to.equal(await compound.getAddress());
-    });
-
-    it("should recommend rebalance when yield gap exceeds threshold", async function () {
-      const { aggregator, compound } = await loadFixture(deployFixture);
-      // Current: treasury at 408 risk-adjusted
-      // Best: compound at 440 risk-adjusted
-      // Gap: 32 bps — default threshold is 50 bps, so NO rebalance
-      const [needed] = await aggregator.shouldRebalance();
-
-      // With default 50 bps threshold, 32 bps gap is NOT enough
-      expect(needed).to.equal(false);
-    });
-
-    it("should recommend rebalance after threshold lowered", async function () {
-      const { aggregator, compound } = await loadFixture(deployFixture);
-
-      // Lower threshold to 20 bps
-      await aggregator.setRebalanceThreshold(20);
-
-      const [needed, target] = await aggregator.shouldRebalance();
-      expect(needed).to.equal(true);
-      expect(target).to.equal(await compound.getAddress());
-    });
-
-    it("should recommend rebalance when APY changes significantly", async function () {
-      const { aggregator, compound } = await loadFixture(deployFixture);
-
-      // Compound APY jumps to 8%
-      await compound.setAPY(800);
-
-      const [needed, target] = await aggregator.shouldRebalance();
-      // Compound risk-adjusted: 800 * 88/100 = 704
-      // Treasury risk-adjusted: 430 * 95/100 = 408
-      // Gap: 296 bps >> 50 threshold
-      expect(needed).to.equal(true);
-      expect(target).to.equal(await compound.getAddress());
-    });
-  });
-});
-
-describe("VaultKeeper", function () {
-  async function deployFixture() {
-    const [owner, user] = await ethers.getSigners();
-
-    const MockERC20 = await ethers.getContractFactory("MockERC20");
-    const usdc = await MockERC20.deploy("USD Coin", "USDC", 6);
-
-    const MockYieldAdapter = await ethers.getContractFactory("MockYieldAdapter");
-    const aave = await MockYieldAdapter.deploy("Aave V3", await usdc.getAddress(), 450, 10);
-    const compound = await MockYieldAdapter.deploy("Compound V3", await usdc.getAddress(), 800, 12);
-    const treasury = await MockYieldAdapter.deploy("US Treasury", await usdc.getAddress(), 430, 5);
-
-    const TreasuryVault = await ethers.getContractFactory("TreasuryVault");
-    const vault = await TreasuryVault.deploy(await usdc.getAddress(), "TV", "TV");
-
-    const YieldAggregator = await ethers.getContractFactory("YieldAggregator");
-    const aggregator = await YieldAggregator.deploy();
-
-    const VaultKeeper = await ethers.getContractFactory("VaultKeeper");
-    const keeper = await VaultKeeper.deploy(await vault.getAddress(), await aggregator.getAddress());
-
-    await aggregator.registerAdapter(await aave.getAddress());
-    await aggregator.registerAdapter(await compound.getAddress());
-    await aggregator.registerAdapter(await treasury.getAddress());
-    await aggregator.setVault(await vault.getAddress());
-    await vault.setActiveAdapter(await treasury.getAddress());
-    await vault.setKeeper(await keeper.getAddress());
-
-    // Deposit some funds
-    const amount = ethers.parseUnits("10000", 6);
-    await usdc.mint(await user.getAddress(), amount);
-    await usdc.connect(user).approve(await vault.getAddress(), amount);
-    await vault.connect(user).deposit(amount, await user.getAddress());
-
-    return { owner, user, usdc, vault, aggregator, keeper, aave, compound, treasury, amount };
-  }
-
-  describe("checkUpkeep", function () {
-    it("should return true when rebalance needed", async function () {
-      const { keeper } = await loadFixture(deployFixture);
-      // Compound at 800 bps risk-adjusted = 704, treasury at 408. Gap = 296 > 50
-      const [upkeepNeeded] = await keeper.checkUpkeep("0x");
-      expect(upkeepNeeded).to.equal(true);
-    });
-
-    it("should return false when vault is paused", async function () {
-      const { keeper, vault, owner } = await loadFixture(deployFixture);
-      await vault.connect(owner).setPaused(true);
-
-      const [upkeepNeeded] = await keeper.checkUpkeep("0x");
-      expect(upkeepNeeded).to.equal(false);
-    });
-  });
-
-  describe("performUpkeep", function () {
-    it("should execute rebalance to best adapter", async function () {
-      const { keeper, vault, compound, treasury, amount } = await loadFixture(deployFixture);
-
-      const [, performData] = await keeper.checkUpkeep("0x");
-      await keeper.performUpkeep(performData);
-
-      // Funds should have moved to compound
-      expect(await compound.getTotalDeposited()).to.equal(amount);
-      expect(await treasury.getTotalDeposited()).to.equal(0);
-      expect(await vault.currentProtocol()).to.equal("Compound V3");
     });
   });
 });

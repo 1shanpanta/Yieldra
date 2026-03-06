@@ -20,14 +20,10 @@ describe("Advanced Tests", function () {
     const YieldAggregator = await ethers.getContractFactory("YieldAggregator");
     const aggregator = await YieldAggregator.deploy();
 
-    const VaultKeeper = await ethers.getContractFactory("VaultKeeper");
-    const keeper = await VaultKeeper.deploy(await vault.getAddress(), await aggregator.getAddress());
-
     await aggregator.registerAdapter(await aaveAdapter.getAddress());
     await aggregator.registerAdapter(await compoundAdapter.getAddress());
     await aggregator.registerAdapter(await treasuryAdapter.getAddress());
-    await aggregator.setVault(await vault.getAddress());
-    await vault.setKeeper(await keeper.getAddress());
+    await vault.setCREForwarder(await owner.getAddress());
     await vault.setActiveAdapter(await treasuryAdapter.getAddress());
 
     // Mint USDC to test users
@@ -38,7 +34,7 @@ describe("Advanced Tests", function () {
     }
 
     return {
-      owner, user, user2, user3, usdc, vault, aggregator, keeper,
+      owner, user, user2, user3, usdc, vault, aggregator,
       aaveAdapter, compoundAdapter, treasuryAdapter,
     };
   }
@@ -61,7 +57,7 @@ describe("Advanced Tests", function () {
 
       const amount = ethers.parseUnits("1000", 6);
       await vault.connect(user).deposit(amount, await user.getAddress());
-      await vault.setKeeper(await owner.getAddress());
+      await vault.setCREForwarder(await owner.getAddress());
 
       // Mine a block so we're on a different block
       await ethers.provider.send("evm_mine", []);
@@ -160,25 +156,24 @@ describe("Advanced Tests", function () {
   });
 
   describe("Adapter Health Checks", function () {
-    it("should skip unhealthy adapters in getBestYield", async function () {
-      const { aggregator, compoundAdapter, aaveAdapter } = await loadFixture(deployFixture);
+    it("should report unhealthy adapters in getAllYields", async function () {
+      const { aggregator, compoundAdapter } = await loadFixture(deployFixture);
 
-      // Compound has the best risk-adjusted yield (440 bps)
-      const [bestBefore] = await aggregator.getBestYield();
-      expect(bestBefore).to.equal(await compoundAdapter.getAddress());
+      // All healthy by default
+      const yieldsBefore = await aggregator.getAllYields();
+      expect(yieldsBefore[1].healthy).to.equal(true); // compound at index 1
 
       // Make compound unhealthy
       await compoundAdapter.setHealthy(false);
 
-      // Now Aave should be best (or treasury)
-      const [bestAfter] = await aggregator.getBestYield();
-      expect(bestAfter).to.not.equal(await compoundAdapter.getAddress());
+      const yieldsAfter = await aggregator.getAllYields();
+      expect(yieldsAfter[1].healthy).to.equal(false);
     });
 
     it("should reject rebalance to unhealthy adapter", async function () {
       const { vault, owner, compoundAdapter } = await loadFixture(deployFixture);
 
-      await vault.setKeeper(await owner.getAddress());
+      await vault.setCREForwarder(await owner.getAddress());
       await compoundAdapter.setHealthy(false);
 
       await expect(
@@ -274,7 +269,7 @@ describe("Advanced Tests", function () {
       const amount = ethers.parseUnits("10000", 6);
 
       await vault.connect(user).deposit(amount, await user.getAddress());
-      await vault.setKeeper(await owner.getAddress());
+      await vault.setCREForwarder(await owner.getAddress());
 
       // Mine a new block to avoid same-block guard
       await ethers.provider.send("evm_mine", []);
