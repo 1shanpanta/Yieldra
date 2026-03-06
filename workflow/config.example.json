@@ -1,0 +1,10 @@
+{
+  "schedule": "0 0 * * * *",
+  "defiLlamaBaseUrl": "https://yields.llama.fi",
+  "monitoredProtocols": ["aave-v3", "compound-v3"],
+  "targetSymbol": "USDC",
+  "vaultAddress": "YOUR_VAULT_ADDRESS",
+  "aggregatorAddress": "YOUR_AGGREGATOR_ADDRESS",
+  "chainSelector": "16015286601757825753",
+  "rebalanceThreshold": 50
+}

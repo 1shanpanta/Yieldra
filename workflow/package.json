@@ -1,0 +1,16 @@
+{
+  "name": "yieldra-cre-workflow",
+  "version": "1.0.0",
+  "type": "module",
+  "description": "Chainlink CRE workflow for Yieldra yield vault auto-rebalancing",
+  "scripts": {
+    "build": "cre workflow build",
+    "simulate": "cre workflow simulate .",
+    "deploy:sepolia": "cre workflow deploy . --target sepolia"
+  },
+  "dependencies": {
+    "@chainlink/cre-sdk": "^1.1.2",
+    "viem": "^2.46.3",
+    "zod": "^3.24.0"
+  }
+}

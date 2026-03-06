@@ -1,0 +1,9 @@
+triggers:
+  - type: "cron"
+    schedule: "0 0 * * * *" # Every hour at minute 0
+    name: "yield-monitor-trigger"
+
+user-workflow:
+  sepolia:
+    workflow-name: "yieldra-rebalancer"
+    enabled: true

@@ -21,6 +21,7 @@
     "@types/node": "^25.3.2",
     "concurrently": "^9.2.1",
     "hardhat": "^2.28.6",
+    "solhint": "^6.0.3",
     "ts-node": "^10.9.2",
     "typescript": "^5.9.3",
     "wait-on": "^9.0.4"

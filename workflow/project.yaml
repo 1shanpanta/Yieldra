@@ -1,0 +1,9 @@
+name: yieldra-rebalancer
+description: "CRE workflow that monitors DeFi yields and auto-rebalances the Yieldra vault"
+version: "1.0.0"
+
+targets:
+  sepolia:
+    network: ethereum-sepolia
+    rpc_url: ${SEPOLIA_RPC_URL}
+    forwarder_address: ${CRE_FORWARDER_ADDRESS}
