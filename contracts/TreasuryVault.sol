@@ -15,11 +15,17 @@ contract TreasuryVault is ERC4626, Ownable, ReentrancyGuard {
 
     // --- State ---
     IYieldAdapter public activeAdapter;
-    address public keeper; // Chainlink Automation address
+    address public creForwarder; // Chainlink CRE forwarder address
     bool public paused;
 
     /// @notice Track last deposit block to prevent same-block rebalance manipulation
     uint256 public lastDepositBlock;
+
+    /// @notice Timestamp of last rebalance (cooldown enforcement)
+    uint256 public lastRebalanceTime;
+
+    /// @notice Minimum time between rebalances
+    uint256 public constant MIN_REBALANCE_INTERVAL = 1 hours;
 
     /// @notice Maximum total assets the vault will accept (0 = unlimited)
     uint256 public depositCap;
@@ -31,7 +37,7 @@ contract TreasuryVault is ERC4626, Ownable, ReentrancyGuard {
     // --- Events ---
     event Rebalanced(address indexed fromAdapter, address indexed toAdapter, uint256 amount);
     event AdapterChanged(address indexed newAdapter);
-    event KeeperUpdated(address indexed newKeeper);
+    event CREForwarderUpdated(address indexed newForwarder);
     event Paused(bool isPaused);
     event FundsDeployed(address indexed adapter, uint256 amount);
     event FundsWithdrawn(address indexed adapter, uint256 amount);
@@ -41,8 +47,9 @@ contract TreasuryVault is ERC4626, Ownable, ReentrancyGuard {
 
     // --- Errors ---
     error VaultPaused();
-    error OnlyKeeper();
+    error OnlyCRE();
     error NoAdapter();
+    error CooldownActive();
     error SameAdapter();
     error AdapterUnhealthy();
     error SameBlockRebalance();
@@ -68,8 +75,8 @@ contract TreasuryVault is ERC4626, Ownable, ReentrancyGuard {
         _;
     }
 
-    modifier onlyKeeper() {
-        if (msg.sender != keeper && msg.sender != owner()) revert OnlyKeeper();
+    modifier onlyCRE() {
+        if (msg.sender != creForwarder && msg.sender != owner()) revert OnlyCRE();
         _;
     }
 
@@ -81,10 +88,10 @@ contract TreasuryVault is ERC4626, Ownable, ReentrancyGuard {
         emit AdapterChanged(_adapter);
     }
 
-    /// @notice Set the Chainlink Automation keeper address
-    function setKeeper(address _keeper) external onlyOwner {
-        keeper = _keeper;
-        emit KeeperUpdated(_keeper);
+    /// @notice Set the Chainlink CRE forwarder address
+    function setCREForwarder(address _forwarder) external onlyOwner {
+        creForwarder = _forwarder;
+        emit CREForwarderUpdated(_forwarder);
     }
 
     /// @notice Emergency pause
@@ -195,8 +202,9 @@ contract TreasuryVault is ERC4626, Ownable, ReentrancyGuard {
     // --- Rebalancing ---
 
     /// @notice Move all funds from current adapter to a new adapter
-    /// @dev Called by Chainlink Automation keeper or owner
-    function rebalance(address newAdapter) external onlyKeeper nonReentrant whenNotPaused {
+    /// @dev Called by Chainlink CRE workflow forwarder or owner
+    function rebalance(address newAdapter) external onlyCRE nonReentrant whenNotPaused {
+        if (block.timestamp < lastRebalanceTime + MIN_REBALANCE_INTERVAL) revert CooldownActive();
         if (newAdapter == address(0)) revert NoAdapter();
         if (newAdapter == address(activeAdapter)) revert SameAdapter();
         if (!IYieldAdapter(newAdapter).isHealthy()) revert AdapterUnhealthy();
@@ -225,6 +233,8 @@ contract TreasuryVault is ERC4626, Ownable, ReentrancyGuard {
             IERC20(asset()).safeIncreaseAllowance(newAdapter, balance);
             activeAdapter.deposit(balance);
         }
+
+        lastRebalanceTime = block.timestamp;
 
         emit Rebalanced(oldAdapter, newAdapter, balance);
         emit AdapterChanged(newAdapter);

@@ -49,23 +49,18 @@ async function main() {
   await aggregator.waitForDeployment();
   console.log("Aggregator:", await aggregator.getAddress());
 
-  // Deploy keeper
-  const VaultKeeper = await ethers.getContractFactory("VaultKeeper");
-  const keeper = await VaultKeeper.deploy(
-    await vault.getAddress(),
-    await aggregator.getAddress()
-  );
-  await keeper.waitForDeployment();
-  console.log("Keeper:", await keeper.getAddress());
-
   // Wire everything together
   console.log("\nConfiguring...");
   await aggregator.registerAdapter(await aaveAdapter.getAddress());
   await aggregator.registerAdapter(await compoundAdapter.getAddress());
   await aggregator.registerAdapter(await treasuryAdapter.getAddress());
-  await aggregator.setVault(await vault.getAddress());
-  await vault.setKeeper(await keeper.getAddress());
   await vault.setActiveAdapter(await treasuryAdapter.getAddress());
+
+  // Set CRE forwarder — on local dev, use deployer as forwarder for testing
+  // On Sepolia, this should be the Chainlink CRE DON forwarder address
+  const creForwarder = process.env.CRE_FORWARDER_ADDRESS || deployer.address;
+  await vault.setCREForwarder(creForwarder);
+  console.log("CRE Forwarder:", creForwarder);
 
   // Mint test USDC to deployer for demo
   const mintAmount = ethers.parseUnits("100000", 6); // 100k USDC
@@ -76,7 +71,9 @@ async function main() {
     vault: await vault.getAddress(),
     aggregator: await aggregator.getAddress(),
     usdc: await usdc.getAddress(),
-    keeper: await keeper.getAddress(),
+    aaveAdapter: await aaveAdapter.getAddress(),
+    compoundAdapter: await compoundAdapter.getAddress(),
+    treasuryAdapter: await treasuryAdapter.getAddress(),
   };
 
   const frontendConfigDir = path.join(__dirname, "..", "frontend", "src", "config");
@@ -90,20 +87,33 @@ async function main() {
     `NEXT_PUBLIC_VAULT_ADDRESS=${addresses.vault}`,
     `NEXT_PUBLIC_AGGREGATOR_ADDRESS=${addresses.aggregator}`,
     `NEXT_PUBLIC_USDC_ADDRESS=${addresses.usdc}`,
-    `NEXT_PUBLIC_KEEPER_ADDRESS=${addresses.keeper}`,
     `NEXT_PUBLIC_WC_PROJECT_ID=demo`,
   ].join("\n");
   fs.writeFileSync(envPath, envContent + "\n");
   console.log(`Frontend .env.local written to ${envPath}`);
 
+  // Write CRE workflow config
+  const workflowConfigPath = path.join(__dirname, "..", "workflow", "config.json");
+  const workflowConfig = {
+    schedule: "0 0 * * * *",
+    defiLlamaBaseUrl: "https://yields.llama.fi",
+    monitoredProtocols: ["aave-v3", "compound-v3"],
+    targetSymbol: "USDC",
+    vaultAddress: addresses.vault,
+    aggregatorAddress: addresses.aggregator,
+    chainSelector: "16015286601757825753",
+    rebalanceThreshold: 50,
+  };
+  fs.writeFileSync(workflowConfigPath, JSON.stringify(workflowConfig, null, 2));
+  console.log(`CRE workflow config written to ${workflowConfigPath}`);
+
   console.log("\n--- Deployment Complete ---");
   console.log(`USDC:       ${addresses.usdc}`);
   console.log(`Vault:      ${addresses.vault}`);
   console.log(`Aggregator: ${addresses.aggregator}`);
-  console.log(`Keeper:     ${addresses.keeper}`);
-  console.log(`Aave:       ${await aaveAdapter.getAddress()}`);
-  console.log(`Compound:   ${await compoundAdapter.getAddress()}`);
-  console.log(`Treasury:   ${await treasuryAdapter.getAddress()}`);
+  console.log(`Aave:       ${addresses.aaveAdapter}`);
+  console.log(`Compound:   ${addresses.compoundAdapter}`);
+  console.log(`Treasury:   ${addresses.treasuryAdapter}`);
 }
 
 main().catch((error) => {
