@@ -102,7 +102,10 @@ export default function ApyChart() {
               tick={{ fill: "#555", fontSize: 10 }}
               axisLine={false}
               tickLine={false}
-              interval="preserveStartEnd"
+              interval={Math.max(0, Math.floor(history.length / 5) - 1)}
+              angle={-35}
+              textAnchor="end"
+              height={40}
             />
             <YAxis
               tick={{ fill: "#555", fontSize: 10 }}

@@ -16,7 +16,8 @@ export const VAULT_ABI = [
   { inputs: [{ name: "shares", type: "uint256" }], name: "previewRedeem", outputs: [{ name: "", type: "uint256" }], stateMutability: "view", type: "function" },
   { inputs: [{ name: "shares", type: "uint256" }], name: "convertToAssets", outputs: [{ name: "", type: "uint256" }], stateMutability: "view", type: "function" },
   { inputs: [], name: "asset", outputs: [{ name: "", type: "address" }], stateMutability: "view", type: "function" },
-  { inputs: [], name: "keeper", outputs: [{ name: "", type: "address" }], stateMutability: "view", type: "function" },
+  { inputs: [], name: "creForwarder", outputs: [{ name: "", type: "address" }], stateMutability: "view", type: "function" },
+  { inputs: [], name: "lastRebalanceTime", outputs: [{ name: "", type: "uint256" }], stateMutability: "view", type: "function" },
   { inputs: [{ name: "", type: "address" }], name: "maxDeposit", outputs: [{ name: "", type: "uint256" }], stateMutability: "view", type: "function" },
   { inputs: [], name: "emergencyWithdraw", outputs: [], stateMutability: "nonpayable", type: "function" },
   { inputs: [], name: "depositCap", outputs: [{ name: "", type: "uint256" }], stateMutability: "view", type: "function" },
@@ -32,14 +33,13 @@ export const AGGREGATOR_ABI = [
         { name: "riskScore", type: "uint256" },
         { name: "riskAdjustedAPY", type: "uint256" },
         { name: "deposited", type: "uint256" },
+        { name: "healthy", type: "bool" },
       ],
       name: "", type: "tuple[]"
     }], stateMutability: "view", type: "function"
   },
-  { inputs: [], name: "getBestYield", outputs: [{ name: "bestAdapter", type: "address" }, { name: "bestAPY", type: "uint256" }], stateMutability: "view", type: "function" },
-  { inputs: [], name: "shouldRebalance", outputs: [{ name: "needed", type: "bool" }, { name: "targetAdapter", type: "address" }], stateMutability: "view", type: "function" },
-  { inputs: [], name: "rebalanceThreshold", outputs: [{ name: "", type: "uint256" }], stateMutability: "view", type: "function" },
   { inputs: [], name: "getAdapterCount", outputs: [{ name: "", type: "uint256" }], stateMutability: "view", type: "function" },
+  { inputs: [{ name: "index", type: "uint256" }], name: "getAdapter", outputs: [{ name: "", type: "address" }], stateMutability: "view", type: "function" },
 ] as const;
 
 export const ERC20_ABI = [
@@ -55,5 +55,4 @@ export const CONTRACTS = {
   vault: (process.env.NEXT_PUBLIC_VAULT_ADDRESS || "0xDc64a140Aa3E981100a9becA4E685f962f0cF6C9") as `0x${string}`,
   aggregator: (process.env.NEXT_PUBLIC_AGGREGATOR_ADDRESS || "0x5FC8d32690cc91D4c39d9d3abcBD16989F875707") as `0x${string}`,
   usdc: (process.env.NEXT_PUBLIC_USDC_ADDRESS || "0x5FbDB2315678afecb367f032d93F642f64180aa3") as `0x${string}`,
-  keeper: (process.env.NEXT_PUBLIC_KEEPER_ADDRESS || "0x0165878A594ca255338adfa4d48449f69242Eb8F") as `0x${string}`,
 } as const;

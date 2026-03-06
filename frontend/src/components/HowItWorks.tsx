@@ -9,12 +9,12 @@ const steps = [
   {
     num: "02",
     title: "Yield Monitored",
-    desc: "Chainlink Automation continuously monitors APY across Aave, Compound, and Tokenized Treasuries.",
+    desc: "The CRE workflow continuously monitors APY across Aave, Compound, and Tokenized Treasuries.",
   },
   {
     num: "03",
-    title: "Auto-Rebalance",
-    desc: "When a better risk-adjusted yield is found, funds automatically move to the optimal protocol.",
+    title: "Smart Rebalance",
+    desc: "When a better risk-adjusted yield is found, the Chainlink CRE workflow automatically rebalances funds.",
   },
   {
     num: "04",
@@ -31,7 +31,7 @@ export default function HowItWorks() {
         {steps.map((step) => (
           <div
             key={step.num}
-            className="rounded-xl bg-[#0f0f0f] border border-white/[0.03] p-5 flex flex-col gap-2.5"
+            className="rounded-xl bg-gradient-to-b from-white/[0.04] to-transparent border border-white/[0.06] p-5 flex flex-col gap-2.5 hover:border-[#C9A96E]/30 hover:shadow-[0_0_20px_rgba(201,169,110,0.06)] transition-all duration-300"
           >
             <span className="text-[#C9A96E] text-[10px] font-semibold tracking-widest">{step.num}</span>
             <span className="text-sm font-medium text-white">{step.title}</span>

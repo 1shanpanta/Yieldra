@@ -117,21 +117,12 @@ export function useYieldData() {
     query: { refetchInterval: POLL_INTERVAL },
   });
 
-  const { data: rebalanceData } = useReadContract({
-    address: CONTRACTS.aggregator,
-    abi: AGGREGATOR_ABI,
-    functionName: "shouldRebalance",
-    query: { refetchInterval: POLL_INTERVAL },
-  });
-
   // Fall back to mock yields when contract data isn't available
   const resolvedYields = yields && yields.length > 0 ? yields : MOCK.yields;
   const hasMockFallback = !yields || yields.length === 0;
 
   return {
     yields: resolvedYields,
-    shouldRebalance: rebalanceData?.[0] || false,
-    rebalanceTarget: rebalanceData?.[1],
     isLoading: hasMockFallback ? false : isLoading,
     refetch,
   };

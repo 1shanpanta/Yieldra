@@ -22,7 +22,7 @@ interface YieldTableProps {
 }
 
 export default function YieldTable({ selectedAdapter, onSelect }: YieldTableProps) {
-  const { yields, shouldRebalance, rebalanceTarget, isLoading } = useYieldData();
+  const { yields, isLoading } = useYieldData();
   const { protocol: activeProtocol } = useVaultStats();
 
   if (isLoading) {
@@ -38,23 +38,10 @@ export default function YieldTable({ selectedAdapter, onSelect }: YieldTableProp
     );
   }
 
-  const targetYield = yields.find(
-    (y) => rebalanceTarget && y.adapter.toLowerCase() === rebalanceTarget.toLowerCase()
-  );
-  const currentYield = yields.find((y) => y.protocolName === activeProtocol);
-  const currentRiskAdj = currentYield ? Number(currentYield.riskAdjustedAPY) : 0;
-  const targetRiskAdj = targetYield ? Number(targetYield.riskAdjustedAPY) : 0;
-  const apyDelta = ((targetRiskAdj - currentRiskAdj) / 100).toFixed(2);
-
   return (
     <div className="neo-card p-7 flex flex-col gap-5 animate-fade-in stagger-2">
       <div className="flex items-center justify-between">
         <h2 className="text-sm font-medium text-neutral-300 tracking-wide">Yield Comparison</h2>
-        {shouldRebalance && targetYield && (
-          <span className="text-[11px] px-2.5 py-1 rounded-full bg-white/5 text-[#C9A96E] font-medium">
-            +{apyDelta}% via {targetYield.protocolName}
-          </span>
-        )}
       </div>
 
       <div className="space-y-3" role="listbox" aria-label="Select a yield protocol">

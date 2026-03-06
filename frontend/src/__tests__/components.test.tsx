@@ -87,7 +87,7 @@ describe("HowItWorks component", () => {
 
     expect(screen.getByText("Deposit USDC")).toBeInTheDocument();
     expect(screen.getByText("Yield Monitored")).toBeInTheDocument();
-    expect(screen.getByText("Auto-Rebalance")).toBeInTheDocument();
+    expect(screen.getByText("Smart Rebalance")).toBeInTheDocument();
     expect(screen.getByText("Withdraw Anytime")).toBeInTheDocument();
   });
 
@@ -114,7 +114,7 @@ describe("HowItWorks component", () => {
     render(<HowItWorks />);
 
     expect(screen.getByText(/receive tyUSDC shares/i)).toBeInTheDocument();
-    expect(screen.getByText(/Chainlink Automation/i)).toBeInTheDocument();
+    expect(screen.getByText(/CRE workflow continuously monitors/i)).toBeInTheDocument();
     expect(screen.getByText(/risk-adjusted yield/i)).toBeInTheDocument();
     expect(screen.getByText(/Redeem your tyUSDC/i)).toBeInTheDocument();
   });
